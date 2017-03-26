@@ -1,6 +1,19 @@
 {
     "presets": [
         "react",
-        "latest"
+        [
+            "latest", {
+                "modules": false
+            }
+        ]
+    ],
+
+    "plugins": [
+        "transform-react-jsx",
+        "transform-runtime"
+    ],
+
+    "ignore": [
+        "node_modules/**/*"
     ]
 }

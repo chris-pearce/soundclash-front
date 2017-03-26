@@ -1,1 +1,9 @@
-const helloWorld = () => console.log('Hello world');
+import React from 'react';
+import ReactDOM from 'react-dom';
+import './assets/css/style.css';
+
+
+ReactDOM.render(
+    <h1>Hello, world!</h1>,
+    document.getElementById('root')
+);

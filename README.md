@@ -1,2 +1,3 @@
-# soundclash-front
-A React SPA for soundclash: http://www.soundcla.sh/
+# Soundclash front
+
+A [React](https://facebook.github.io/react/) Single Page Application for [soundclash](http://www.soundcla.sh/).

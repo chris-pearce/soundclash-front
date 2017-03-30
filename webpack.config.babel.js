@@ -1,6 +1,7 @@
 const path = require('path');
 const webpack = require('webpack');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 
 module.exports = {
@@ -34,9 +35,14 @@ module.exports = {
                 exclude: /node_modules/,
                 use: ExtractTextPlugin.extract(
                     {
-                        fallback: "style-loader",
+                        fallback: 'style-loader',
                         use: [
-                            'css-loader',
+                            {
+                                loader: 'css-loader',
+                                options: {
+                                    minimize: true
+                                }
+                            },
                             {
                                 loader: 'postcss-loader',
                                 options: {
@@ -55,15 +61,22 @@ module.exports = {
     },
 
     plugins: [
-        new webpack.optimize.OccurrenceOrderPlugin(),
-        new webpack.optimize.AggressiveMergingPlugin(),
-        new webpack.HotModuleReplacementPlugin(),
+        new CopyWebpackPlugin(
+            [
+                {from: './src/index.html'}
+            ]
+        ),
         new webpack.DefinePlugin({
             'process.env': {
                 NODE_ENV: JSON.stringify('development')
             }
         }),
-        new ExtractTextPlugin('style.css')
+        new ExtractTextPlugin({
+            filename: 'css/[name].css'
+        }),
+        new webpack.HotModuleReplacementPlugin(),
+        new webpack.optimize.OccurrenceOrderPlugin(),
+        new webpack.optimize.AggressiveMergingPlugin(),
         // new webpack.optimize.CommonsChunkPlugin({
         //     name: 'bundle.js'
         // }),

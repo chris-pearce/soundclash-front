@@ -1,4 +1,7 @@
 html {
+    background: aquamarine;
+    font-family: monospace;
+    font-size: 2em;
     /* Hello */
     display: grid;
 }

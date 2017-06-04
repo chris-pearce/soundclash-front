@@ -2,7 +2,7 @@
 import React, {Component} from 'react';
 // App
 import {loadClashes} from './../../lib/service';
-import {Header} from './../Header';
+import {Header} from 'Components/Header';
 
 
 export class App extends Component {
@@ -25,7 +25,7 @@ export class App extends Component {
         return (
             <div>
                 <Header />
-                <p>Hello worlds</p>
+                <p>Now then squires</p>
             </div>
         );
     }

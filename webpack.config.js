@@ -1,8 +1,16 @@
+// https://survivejs.com/webpack/
+// https://presentations.survivejs.com/advanced-webpack/
+// https://medium.com/webpack/predictable-long-term-caching-with-webpack-d3eee1d3fa31
+
 const webpack = require('webpack');
-const path = require('path');
-const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
+const {resolve} = require('path');
+const chalk = require('chalk');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const InlineChunkManifestHtmlWebpackPlugin = require('inline-chunk-manifest-html-webpack-plugin');
+const WebpackChunkHash = require('webpack-chunk-hash');
 
 
 const dirs = {
@@ -10,113 +18,221 @@ const dirs = {
     src: 'src'
 }
 
+const files = {
+    rootHTML: './index.ejs',
+    rootJS: './index.js',
+}
+
 const paths = {
-    dist: path.resolve(__dirname, dirs.dist),
-    srcAbs: path.resolve(__dirname, dirs.src),
-    srcRel: `./${dirs.src}/`
+    dist: resolve(__dirname, dirs.dist),
+    src: resolve(__dirname, dirs.src),
 }
 
 
 module.exports = env => {
-    return ({
-        devtool: 'eval-source-map',
+    // Plugins
+    const addPlugin = (add, plugin) => add ? plugin : undefined;
+    const removeEmptyPlugin = array => array.filter(i => !!i);
 
-        entry: [
-            `${paths.srcRel}index.js`
-        ],
+    // Environments
+    const isDev = env.dev;
+    const isProd = env.prod;
+    const ifDev = plugin => addPlugin(isDev, plugin);
+    const ifProd = plugin => addPlugin(isProd, plugin);
+    if (isDev) console.log(chalk.black.bgBlue.bold('🕵️‍♀️🕵️‍♀️🕵️‍♀️   Development build '));
+    if (isProd) console.log(chalk.black.bgYellow.bold('🕺🕺🕺   Production build '));
 
-        output: {
-            filename: 'app.js',
-            path: paths.dist,
-            publicPath: '/'
-        },
+    // Hash
+    const fileHash = (type = 'chunkhash', ext = 'js') => (
+        isDev ? `[name].${ext}` : `[name]-[${type}:8].${ext}`
+    );
 
-        resolve: {
-            extensions: [
-                '.js',
-                '.json',
-                '.jsx'
-            ]
-        },
+    return {
+        bail: isProd,
 
-        module: {
-            rules: [
-                {
-                    test: /\.js$/,
-                    exclude: /node_modules/,
-                    use: [
-                        {
-                            loader: 'babel-loader',
-                            query: {
-                                cacheDirectory: true
-                            }
-                        }
-                    ]
-                },
-                {
-                    test: /\.json$/,
-                    exclude: /node_modules/,
-                    loader: 'json'
-                },
-                {
-                    test: /\.css$/,
-                    exclude: /node_modules/,
-                    use: ['css-hot-loader'].concat(ExtractTextWebpackPlugin.extract({
-                        fallback: 'style-loader',
-                        use: [
-                            {
-                                loader: 'css-loader',
-                                // options: {minimize: true}
-                            },
-                            {
-                                loader: 'postcss-loader',
-                                options: {
-                                    plugins: function () {
-                                        return [
-                                            require('autoprefixer')
-                                        ];
-                                    }
-                                }
-                            }
-                        ]
-                    }))
-                }
-            ]
-        },
-
-        plugins: [
-            new BundleAnalyzerPlugin({
-                analyzerMode: 'static',
-                reportFilename: 'bundle-report.html',
-                generateStatsFile: true,
-                statsFilename: 'bundle-stats.json',
-                openAnalyzer: false
-            }),
-            new CopyWebpackPlugin([{from: `${paths.srcRel}index.html`}]),
-            new ExtractTextWebpackPlugin('app.css'),
-            new webpack.optimize.OccurenceOrderPlugin()
-            // new webpack.HotModuleReplacementPlugin()
-        ],
+        context: paths.src,
 
         devServer: {
+            // Enable gzip compression of generated files
+            compress: true,
             // A directory or URL to serve HTML content from
             contentBase: paths.dist,
             // Fallback to '/index.html' for SPA's
             historyApiFallback: true,
+            // Enable HMR
+            hot: true,
+            // hotOnly: true,
             // Set to false to disable including client scripts (like livereload)
             inline: true,
             // Open default browser while launching
             open: true,
-            // Enable gzip compression
-            compress: true,
-            // Enable HMR
-            hot: true
-        }
-    });
-};
+            // Shows a full-screen overlay in the browser when there are compiler errors
+            overlay: true,
+            // By default files from `contentBase` will not trigger a page reload
+            watchContentBase: true,
+            // Reportedly, this avoids CPU overload on some systems
+            // https://github.com/facebookincubator/create-react-app/issues/293
+            watchOptions: {
+                ignored: /node_modules/,
+            },
+        },
 
-// if (process.env.NODE_ENV === 'production') {
-//     module.exports.plugins.push(
-//         new webpack.optimize.UglifyJsPlugin()
-//     );
-// }
+        devtool: isProd ? 'source-map' : 'cheap-module-source-map',
+
+        entry: [
+            files.rootJS,
+        ],
+
+        module: {
+            rules: [
+                // JS
+                {
+                    include: paths.src,
+                    test: /\.js$/,
+                    use: [
+                        {
+                            loader: 'babel-loader',
+                            query: {
+                                cacheDirectory: true,
+                            },
+                        },
+                    ]
+                },
+
+                // JSON
+                {
+                    include: paths.src,
+                    test: /\.json$/,
+                    loader: 'json',
+                },
+
+                // CSS
+                {
+                    include: paths.src,
+                    test: /\.css$/,
+                    use: ['css-hot-loader'].concat(
+                        ExtractTextWebpackPlugin.extract(
+                            {
+                                fallback: 'style-loader',
+                                use: [
+                                    {
+                                        loader: 'css-loader',
+                                        options: {
+                                            minimize: isProd,
+                                        }
+                                    },
+                                    {
+                                        loader: 'postcss-loader',
+                                        options: {
+                                            plugins: () => {
+                                                return [
+                                                    require('autoprefixer')
+                                                ];
+                                            }
+                                        },
+                                    },
+                                ]
+                            },
+                        )
+                    )
+                },
+            ]
+        },
+
+        output: {
+            filename: fileHash(),
+            path: paths.dist,
+            pathinfo: isDev,
+        },
+
+        performance: {
+            hints: isProd && 'error',
+        },
+
+        plugins: removeEmptyPlugin([
+            new BundleAnalyzerPlugin({
+                analyzerMode: 'static',
+                openAnalyzer: false,
+            }),
+
+            new CopyWebpackPlugin([{
+                from: files.rootHTML,
+            }]),
+
+            new ExtractTextWebpackPlugin(
+                fileHash('contenthash', 'css')
+            ),
+
+            new HtmlWebpackPlugin({
+                template: files.rootHTML,
+            }),
+
+            new InlineChunkManifestHtmlWebpackPlugin(),
+
+            // new WebpackChunkHash(),
+
+            new webpack.optimize.CommonsChunkPlugin({
+                name: 'vendor',
+                minChunks: (module) => {
+                    return module.context && module.context.indexOf('node_modules') !== -1;
+                },
+            }),
+
+            new webpack.optimize.CommonsChunkPlugin({
+                name: 'manifest',
+            }),
+
+            ifDev(
+                new webpack.NamedModulesPlugin(),
+            ),
+
+            ifProd(
+                new webpack.DefinePlugin({
+                    'process.env': {
+                        NODE_ENV: '"production"',
+                    },
+                })
+            ),
+
+            ifProd(
+                new webpack.HashedModuleIdsPlugin(),
+            ),
+
+            ifProd(
+                new webpack.LoaderOptionsPlugin({
+                    minimize: true,
+                    debug: false,
+                    quiet: true,
+                })
+            ),
+
+            ifProd(
+                new webpack.optimize.UglifyJsPlugin({
+                    compress: {
+                        screw_ie8: true,
+                        warnings: false,
+                    },
+                    mangle: {
+                        screw_ie8: true,
+                    },
+                    output: {
+                        comments: false,
+                        screw_ie8: true,
+                    },
+                })
+            ),
+        ]),
+
+        resolve: {
+            alias: {
+                Assets: `${paths.src}/assets`,
+                Components: `${paths.src}/components`,
+                Utils: `${paths.src}/utils`,
+            },
+            modules: [
+                paths.src,
+                'node_modules'
+            ],
+        },
+    };
+};

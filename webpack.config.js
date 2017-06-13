@@ -1,8 +1,15 @@
-// https://survivejs.com/webpack/
-// https://presentations.survivejs.com/advanced-webpack/
-// https://medium.com/webpack/predictable-long-term-caching-with-webpack-d3eee1d3fa31
+/**
+ * @credit
+ * https://survivejs.com/webpack/optimizing/adding-hashes-to-filenames/
+ * https://survivejs.com/webpack/appendices/hmr/
+ * https://presentations.survivejs.com/advanced-webpack/
+ * https://medium.com/webpack/predictable-long-term-caching-with-webpack-d3eee1d3fa31
+ * https://blog.madewithenvy.com/getting-started-with-webpack-2-ed2b86c68783
+ * https://github.com/GoogleChrome/preload-webpack-plugin/blob/master/demo/webpack.config.js
+ */
 
 const webpack = require('webpack');
+const path = require('path');
 const {resolve} = require('path');
 const chalk = require('chalk');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
@@ -10,7 +17,8 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const ExtractTextWebpackPlugin = require('extract-text-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const InlineChunkManifestHtmlWebpackPlugin = require('inline-chunk-manifest-html-webpack-plugin');
-const WebpackChunkHash = require('webpack-chunk-hash');
+const NameAllModulesPlugin = require('name-all-modules-plugin');
+const ScriptExtHtmlWebpackPlugin = require('script-ext-html-webpack-plugin');
 
 
 const dirs = {
@@ -39,8 +47,9 @@ module.exports = env => {
     const isProd = env.prod;
     const ifDev = plugin => addPlugin(isDev, plugin);
     const ifProd = plugin => addPlugin(isProd, plugin);
-    if (isDev) console.log(chalk.black.bgBlue.bold('🕵️‍♀️🕵️‍♀️🕵️‍♀️   Development build '));
-    if (isProd) console.log(chalk.black.bgYellow.bold('🕺🕺🕺   Production build '));
+    console.log(
+        chalk.bgBlack.white(`${isDev ? ' 🐇🐇  Development' : ' 🦈🦈  Production'} build `), '\n'
+    );
 
     // Hash
     const fileHash = (type = 'chunkhash', ext = 'js') => (
@@ -61,13 +70,31 @@ module.exports = env => {
             historyApiFallback: true,
             // Enable HMR
             hot: true,
-            // hotOnly: true,
             // Set to false to disable including client scripts (like livereload)
             inline: true,
             // Open default browser while launching
             open: true,
             // Shows a full-screen overlay in the browser when there are compiler errors
             overlay: true,
+            // Reduce console output
+            stats: {
+                assets: true,
+                cached: false,
+                cachedAssets: false,
+                children: false,
+                chunks: false,
+                chunkModules: false,
+                chunkOrigins: false,
+                colors: true,
+                depth: false,
+                entrypoints: false,
+                errors: true,
+                errorDetails: true,
+                hash: false,
+                maxModules: 0,
+                modules: false,
+                performance: true,
+            },
             // By default files from `contentBase` will not trigger a page reload
             watchContentBase: true,
             // Reportedly, this avoids CPU overload on some systems
@@ -136,6 +163,12 @@ module.exports = env => {
                         )
                     )
                 },
+
+                // Everything else
+                {
+                    test: /\.(gif|png|jpg|jpeg\ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+                    use: 'file-loader',
+                },
             ]
         },
 
@@ -150,42 +183,79 @@ module.exports = env => {
         },
 
         plugins: removeEmptyPlugin([
+            // Lets us see exactly what we have in our JS bundle, set `openAnalyzer` to auto load
             new BundleAnalyzerPlugin({
                 analyzerMode: 'static',
+                logLevel: 'silent',
                 openAnalyzer: false,
+                reportFilename: 'bundle-report.html',
             }),
 
+            // Copy files to `dist`
             new CopyWebpackPlugin([{
                 from: files.rootHTML,
             }]),
 
+            // CSS needs `contenthash` for correct hashing
             new ExtractTextWebpackPlugin(
                 fileHash('contenthash', 'css')
             ),
 
+            // Inject JS and CSS assets into `index.html` as we're hashing them and minify the HTML
             new HtmlWebpackPlugin({
+                minify: isProd && {
+                    collapseBooleanAttributes: true,
+                    collapseInlineTagWhitespace: true,
+                    collapseWhitespace: true,
+                    decodeEntities: true,
+                    minifyCSS: true,
+                    minifyJS: true,
+                    preventAttributesEscaping: true,
+                    removeAttributeQuotes: true,
+                    removeComments: true,
+                    removeEmptyAttributes: true,
+                    removeRedundantAttributes: true,
+                    removeScriptTypeAttributes: true,
+                    removeStyleLinkTypeAttributes: true,
+                    useShortDoctype: true,
+                },
                 template: files.rootHTML,
             }),
 
+            // Add `preload` Resource Hints to JS bundles
+            new ScriptExtHtmlWebpackPlugin({
+                preload: /\.js$/,
+            }),
+
+            // Inlines the manifest into `index.html`
             new InlineChunkManifestHtmlWebpackPlugin(),
 
-            // new WebpackChunkHash(),
+            // For long-term caching, see:
+            // https://medium.com/webpack/predictable-long-term-caching-with-webpack-d3eee1d3fa31
+            new webpack.NamedModulesPlugin(),
+            new webpack.NamedChunksPlugin((chunk) => {
+                if (chunk.name) {
+                    return chunk.name;
+                }
+                return chunk.modules.map(m => path.relative(m.context, m.request)).join('_');
+            }),
 
+            // Creates a vendor bundle and a manifest bundle
             new webpack.optimize.CommonsChunkPlugin({
                 name: 'vendor',
                 minChunks: (module) => {
                     return module.context && module.context.indexOf('node_modules') !== -1;
                 },
             }),
-
             new webpack.optimize.CommonsChunkPlugin({
                 name: 'manifest',
             }),
 
-            ifDev(
-                new webpack.NamedModulesPlugin(),
-            ),
+            // For long-term caching, see:
+            // https://medium.com/webpack/predictable-long-term-caching-with-webpack-d3eee1d3fa31
+            new NameAllModulesPlugin(),
 
+            // Optimise for production build
             ifProd(
                 new webpack.DefinePlugin({
                     'process.env': {
@@ -194,10 +264,7 @@ module.exports = env => {
                 })
             ),
 
-            ifProd(
-                new webpack.HashedModuleIdsPlugin(),
-            ),
-
+            // Apply to all loaders
             ifProd(
                 new webpack.LoaderOptionsPlugin({
                     minimize: true,
@@ -206,6 +273,7 @@ module.exports = env => {
                 })
             ),
 
+            // Optimise JS
             ifProd(
                 new webpack.optimize.UglifyJsPlugin({
                     compress: {

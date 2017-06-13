@@ -25,7 +25,7 @@ export class App extends Component {
         return (
             <div>
                 <Header />
-                <p>Now then squires</p>
+                <p>Content here</p>
             </div>
         );
     }

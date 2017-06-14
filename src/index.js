@@ -1,9 +1,12 @@
+// Vendor
 import React from 'react';
-import ReactDOM from 'react-dom';
-import './assets/css/style.css';
+import {render} from 'react-dom';
+// App
+import {App} from 'Components/App';
+import 'Assets/css/style.css';
 
 
-ReactDOM.render(
-    <h1>Hello soundclashers</h1>,
+render(
+    <App />,
     document.getElementById('root')
 );

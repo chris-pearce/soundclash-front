@@ -1,4 +1,8 @@
 html {
+    background: aliceblue;
+    color: black;
+    font-family: monospace;
+    font-size: 2em;
     /* Hello */
     display: grid;
 }
